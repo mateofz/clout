@@ -23,7 +23,9 @@ main (int argc, char * argv[])
         switch (c)
         {
             case 'e' : 
-                stderror_color = optarg;
+                stderror_color = color_from_name(optarg);
+                if (stderror_color == NULL)
+                    usage();
                 break;
             case 'h' :
                 usage();
@@ -112,8 +114,21 @@ write_all(int fd, const void *buf, size_t n)
 }
 
 
-void 
-usage () 
+void
+usage(void)
 {
+    fprintf(stderr,
+        "usage: clout [-e color] command [argument ...]\n"
+        "\n"
+        "Color stderr output.\n"
+        "\n"
+        "Options:\n"
+        "    -e color    set stderr color\n"
+        "    -h          show this help\n"
+        "\n"
+        "Colors:\n"
+        "    black red green yellow blue purple cyan white orange\n"
+    );
+
     _exit(1);
 }
