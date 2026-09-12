@@ -1,0 +1,78 @@
+.Dd September 12, 2026
+.Dt CLOUT 1
+.Os
+.Sh NAME
+.Nm clout
+.Nd colorize command stderr output
+.Sh SYNOPSIS
+.Nm
+.Op Fl e Ar color
+.Ar command
+.Op Ar argument ...
+.Sh DESCRIPTION
+.Nm
+executes
+.Ar command
+and colorizes its standard error output.
+
+The standard error output of
+.Ar command
+is captured and written to the terminal using the selected color.
+
+The default color for standard error output is red.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl e Ar color
+Set the color used for standard error output.
+.It Fl h
+Display usage information.
+.El
+.Sh COLORS
+The following colors are supported:
+.Bl -tag -width Ds
+.It Cm black
+Black.
+.It Cm red
+Red.
+.It Cm green
+Green.
+.It Cm yellow
+Yellow.
+.It Cm blue
+Blue.
+.It Cm purple
+Purple.
+.It Cm cyan
+Cyan.
+.It Cm white
+White.
+.It Cm orange
+Orange.
+.El
+.Sh EXAMPLES
+Run
+.Xr ls 1
+and colorize its standard error output in red:
+.Bd -literal -offset indent
+clout ls /
+.Ed
+
+Use green for standard error output:
+.Bd -literal -offset indent
+clout -e green ls /
+.Ed
+
+Color the error output of a command using a command argument:
+.Bd -literal -offset indent
+clout -e yellow sh -c 'echo error >&2'
+.Ed
+.Sh EXIT STATUS
+.Ex -std
+.Sh SEE ALSO
+.Xr execvp 3 ,
+.Xr pipe 2 ,
+.Xr dup2 2 ,
+.Xr fork 2 ,
+.Xr wait 2
+.Sh AUTHORS
+.An Mateo (Mahdi Feyzolahy)
