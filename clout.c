@@ -145,7 +145,7 @@ usage(int status)
         "    -h          show this help\n"
         "\n"
         "Colors:\n"
-        "    black red green yellow blue purple cyan white orange\n"
+        "    black red green yellow blue purple cyan white\n"
     );
 
     _exit(status);
