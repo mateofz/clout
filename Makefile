@@ -1,9 +1,10 @@
 CC ?= cc
 
 CFLAGS ?= -Wall -Wextra -Wpedantic
-CFLAGS += -std=c11
+CFLAGS += -std=gnu11
 
 PROG = clout
+
 SRCS = clout.c color.c
 OBJS = $(SRCS:.c=.o)
 
