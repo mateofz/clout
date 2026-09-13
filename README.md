@@ -130,7 +130,7 @@ Future development will explore:
 
 Copyright (C) 2026 Mahdi Feyzolahy
 
-This project is licensed under the GNU General Public License v3.0.
+License: BSD-2-Clause
 
 See the `LICENSE` file for the full license text.
 
