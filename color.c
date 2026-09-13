@@ -30,8 +30,5 @@ color_from_name(const char *color_name)
     if (strcmp(color_name, "white") == 0)
         return COLOR_WHITE;
 
-    if (strcmp(color_name, "orange") == 0)
-        return COLOR_CYAN;
-
     return NULL;
 }

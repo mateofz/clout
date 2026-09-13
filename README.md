@@ -60,7 +60,7 @@ The following colors are supported:
 * purple
 * cyan
 * white
-* orange
+
 
 ## Building
 
