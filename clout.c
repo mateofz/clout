@@ -140,10 +140,9 @@ main (int argc, char * argv[])
 
         execvp(argv[optind], &argv[optind]);
             
-        error("execvp");
         close_pipe(stdout_fd);
         close_pipe(stderr_fd);
-
+        error("execvp");
     }
 }
 
