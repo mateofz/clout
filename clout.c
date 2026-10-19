@@ -1,31 +1,61 @@
-#include <sys/types.h>
-#include <stddef.h>
-#include <string.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <sys/poll.h>
+#include <string.h>
+#include <fcntl.h>
+#include <signal.h>
 #include "color.h"
+#include <sys/wait.h>
+#include <errno.h>
 
 
-ssize_t write_all(int fd, const void *buf, size_t n);
+void close_pipe (int fd[2]);
 void usage(int status);
-void error(const char * errort);
+void error(const char * error);
+ssize_t write_all(int fd, const void *buf, size_t n);
+void handle_stream(struct pollfd *pfd,
+                   const char *output_color,
+                   int output_fd);
+
+pid_t pid;
+
+
+
+
+void child_handler (int sig)
+{
+    int status;
+    if (waitpid(pid, &status, 0) == -1)
+        error("waitpid");
+
+    if (WIFEXITED(status))
+        _exit (WEXITSTATUS(status));
+
+    if (WIFSIGNALED(status))
+        _exit (128 + WTERMSIG(status));
+}
 
 
 int 
 main (int argc, char * argv[]) 
 {
+    const char * stderr_color = COLOR_RED;
+    const char * stdout_color = COLOR_GREEN;
+
+
     int c;
-    const char * stderror_color = COLOR_RED;
-
-
-    while ((c = getopt(argc, argv, "+e:h")) != -1)
+    while ((c = getopt(argc, argv, "+e:o:h")) != -1)
     {
         switch (c)
         {
             case 'e' : 
-                stderror_color = color_from_name(optarg);
-                if (stderror_color == NULL)
+                stderr_color = color_from_name(optarg);
+                if (stderr_color == NULL)
+                    usage(1);
+                break;
+            case 'o' : 
+                stdout_color = color_from_name(optarg);
+                if (stdout_color == NULL)
                     usage(1);
                 break;
             case 'h' :
@@ -37,67 +67,81 @@ main (int argc, char * argv[])
         }
     }
 
-    if (argv[optind] == NULL)
-        usage(1);
-
-
-
-    int pipe_fd_err[2];
-    if (pipe(pipe_fd_err) == -1)
+    int stdout_fd[2];
+    int stderr_fd[2];
+    if (pipe(stdout_fd) == -1)
         error("pipe");
 
-    pid_t pid = fork();
+    if (pipe(stderr_fd) == -1) {
+        close_pipe(stdout_fd);
+        error("pipe");
+    }
+
+
+
+
+    pid = fork();
     if (pid == -1)
         error("fork");
 
-
-    if (pid != 0) // parent
+    else if (pid != 0) // parent process
     {
-        close(pipe_fd_err[1]);
+        signal(SIGCHLD, child_handler);
 
-        ssize_t n;
-        char buffer[255];
-        while ((n = read(pipe_fd_err[0], buffer, sizeof(buffer))) > 0)
+        close(stdout_fd[1]);
+        close(stderr_fd[1]);
+        close(STDIN_FILENO);
+        struct pollfd pfd[2] = 
         {
-            ssize_t len = strlen(stderror_color);
-            if (write_all(STDERR_FILENO, stderror_color,len) != len)
-                error("write");
-            if (write_all(STDERR_FILENO, buffer, n) != n)
-                error("write");
+            {.fd = stdout_fd[0], .events = POLLIN},
+            {.fd = stderr_fd[0], .events = POLLIN}
+        };
+        int flags;
 
-            len = sizeof(COLOR_RESET) - 1;
-            if (write_all(STDERR_FILENO, COLOR_RESET,len) != len)
-                error("write");
+        flags = fcntl(stdout_fd[0], F_GETFL);
+        if (flags == -1)
+            error("fcntl");
+        if (fcntl(stdout_fd[0], F_SETFL, flags | O_NONBLOCK) == -1)
+            error("fcntl");
 
+        flags = fcntl(stderr_fd[0], F_GETFL);
+        if (flags == -1)
+            error("fcntl");
+        if (fcntl(stderr_fd[0], F_SETFL, flags | O_NONBLOCK) == -1)
+            error("fcntl");
+        while (pfd[0].fd != -1 || pfd[1].fd != -1)
+        {
+            if (poll(pfd, 2, -1) == -1)
+                error("poll");
+            
+
+            if (pfd[0].revents & POLLIN) // stdout
+                handle_stream(&pfd[0], stdout_color, STDOUT_FILENO); 
+            if (pfd[1].revents & POLLIN) // stderr
+                handle_stream(&pfd[1], stderr_color, STDERR_FILENO);
         }
-        if (n == -1)
-            error("read");
-
-        close(pipe_fd_err[0]);
-
-        int status;
-        if (waitpid(pid, &status, 0) == -1)
-            error("waitpid");
-
-        if (WIFEXITED(status))
-            return WEXITSTATUS(status);
-
-        if (WIFSIGNALED(status))
-            return 128 + WTERMSIG(status);
-
-        return 1;
-
+        close_pipe(stdout_fd);
+        close_pipe(stderr_fd);
     }
     else
     {
-        close(pipe_fd_err[0]);
-        if (dup2(pipe_fd_err[1], STDERR_FILENO) == -1)
+        close(stdout_fd[0]);
+        close(stderr_fd[0]);
+
+
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+        if (dup2(stdout_fd[1], STDOUT_FILENO) == -1 || dup2(stderr_fd[1], STDERR_FILENO) == -1)
             error("dup2");
 
-        close(pipe_fd_err[1]);
+        close_pipe(stdout_fd);
+        close_pipe(stderr_fd);
 
-        if (execvp(argv[optind], &argv[optind]) == -1)
-            error("execvp");
+        execvp(argv[optind], &argv[optind]);
+            
+        error("execvp");
+        close_pipe(stdout_fd);
+        close_pipe(stderr_fd);
 
     }
 }
@@ -105,11 +149,28 @@ main (int argc, char * argv[])
 
 
 
-void error(const char * errort)
+
+
+
+
+
+
+void error(const char * error_ot)
 {
-    perror(errort);
+    perror(error_ot);
     _exit(1);
 }
+
+
+
+void close_pipe (int fd[2])
+{
+    for (int i = 0 ; i < 2; i++)
+        close(fd[i]);
+}
+
+
+
 
 
 ssize_t
@@ -132,20 +193,81 @@ write_all(int fd, const void *buf, size_t n)
 }
 
 
+
+
+
+
+void
+handle_stream(struct pollfd *pfd,
+              const char *output_color,
+              int output_fd)
+{
+    char buffer[256];
+
+    for (;;) {
+        ssize_t n = read(pfd->fd, buffer, sizeof(buffer));
+
+        if (n > 0) {
+            size_t color_len = strlen(output_color);
+            size_t reset_len = sizeof(COLOR_RESET) - 1;
+
+            if (write_all(output_fd, output_color, color_len) == -1)
+                error("write");
+
+            if (write_all(output_fd, buffer, (size_t)n) == -1)
+                error("write");
+
+            if (write_all(output_fd, COLOR_RESET, reset_len) == -1)
+                error("write");
+
+            continue;
+        }
+
+        if (n == 0) {
+            close(pfd->fd);
+            pfd->fd = -1;
+            return;
+        }
+
+        if (errno == EINTR)
+            continue;
+
+        if (errno == EAGAIN || errno == EWOULDBLOCK)
+            return;
+
+        error("read");
+    }
+}
+
+
+
 void
 usage(int status)
 {
     fprintf(stderr,
-        "usage: clout [-e color] command [argument ...]\n"
+        "usage: clout [-h] [-e color] [-o color] command [argument ...]\n"
         "\n"
-        "Color stderr output.\n"
+        "Colorize command output streams.\n"
         "\n"
         "Options:\n"
-        "    -e color    set stderr color\n"
-        "    -h          show this help\n"
+        "  -e color    Set stderr color (default: red).\n"
+        "  -o color    Set stdout color (default: green).\n"
+        "  -h          Display this help and exit.\n"
         "\n"
         "Colors:\n"
-        "    black red green yellow blue purple cyan white\n"
+        "  black       red         green       yellow\n"
+        "  blue        purple      cyan        white\n"
+        "  gray        bright-red  bright-green bright-yellow\n"
+        "  bright-blue bright-purple bright-cyan bright-white\n"
+        "\n"
+        "Examples:\n"
+        "  clout -e red -o green ls -l\n"
+        "  clout -e yellow grep pattern file\n"
+        "  clout -o cyan printf 'hello\\n'\n"
+        "\n"
+        "Exit status:\n"
+        "  Returns the command's exit status, or 128 + signal number\n"
+        "  if the command terminates due to a signal.\n"
     );
 
     _exit(status);
