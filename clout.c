@@ -3,7 +3,6 @@
 #include <sys/poll.h>
 #include <string.h>
 #include <fcntl.h>
-#include <signal.h>
 #include "color.h"
 #include <sys/wait.h>
 #include <errno.h>
@@ -17,23 +16,8 @@ void handle_stream(struct pollfd *pfd,
                    const char *output_color,
                    int output_fd);
 
-pid_t pid;
 
 
-
-
-void child_handler (int sig)
-{
-    int status;
-    if (waitpid(pid, &status, 0) == -1)
-        error("waitpid");
-
-    if (WIFEXITED(status))
-        _exit (WEXITSTATUS(status));
-
-    if (WIFSIGNALED(status))
-        _exit (128 + WTERMSIG(status));
-}
 
 
 int 
@@ -67,6 +51,9 @@ main (int argc, char * argv[])
         }
     }
 
+    if (optind >= argc)
+        usage(1);
+
     int stdout_fd[2];
     int stderr_fd[2];
     if (pipe(stdout_fd) == -1)
@@ -80,13 +67,12 @@ main (int argc, char * argv[])
 
 
 
-    pid = fork();
+    pid_t pid = fork();
     if (pid == -1)
         error("fork");
 
     else if (pid != 0) // parent process
     {
-        signal(SIGCHLD, child_handler);
 
         close(stdout_fd[1]);
         close(stderr_fd[1]);
@@ -115,14 +101,29 @@ main (int argc, char * argv[])
                 error("poll");
             
 
-            if (pfd[0].revents & POLLIN) // stdout
-                handle_stream(&pfd[0], stdout_color, STDOUT_FILENO); 
-            if (pfd[1].revents & POLLIN) // stderr
+            if (pfd[0].revents & (POLLIN | POLLHUP))
+                handle_stream(&pfd[0], stdout_color, STDOUT_FILENO);
+
+            if (pfd[1].revents & (POLLIN | POLLHUP))
                 handle_stream(&pfd[1], stderr_color, STDERR_FILENO);
         }
         close_pipe(stdout_fd);
         close_pipe(stderr_fd);
+
+
+        int status;
+        if (waitpid(pid, &status, 0) == -1)
+            error("waitpid");
+
+        if (WIFEXITED(status))
+            _exit (WEXITSTATUS(status));
+
+        if (WIFSIGNALED(status))
+            _exit (128 + WTERMSIG(status));
     }
+
+
+
     else
     {
         close(stdout_fd[0]);
