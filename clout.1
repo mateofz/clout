@@ -1,31 +1,45 @@
-.Dd September 12, 2026
+.Dd October 19, 2026
 .Dt CLOUT 1
 .Os
 .Sh NAME
 .Nm clout
-.Nd colorize command stderr output
+.Nd colorize command standard output and standard error
 .Sh SYNOPSIS
 .Nm
+.Op Fl h
 .Op Fl e Ar color
+.Op Fl o Ar color
 .Ar command
 .Op Ar argument ...
 .Sh DESCRIPTION
 .Nm
 executes
 .Ar command
-and colorizes its standard error output.
-
-The standard error output of
+and independently colorizes its standard output and standard error streams.
+.Pp
+The standard output and standard error streams of
 .Ar command
-is captured and written to the terminal using the selected color.
-
+are captured through separate pipes and written to the corresponding output streams using ANSI color escape sequences.
+.Pp
+The default color for standard output is green.
 The default color for standard error output is red.
+.Pp
+.Nm
+uses
+.Xr fork 2
+and
+.Xr execvp 3
+to execute the command, and
+.Xr poll 2
+to monitor both output streams.
 .Sh OPTIONS
 .Bl -tag -width Ds
+.It Fl h
+Display usage information and exit.
 .It Fl e Ar color
 Set the color used for standard error output.
-.It Fl h
-Display usage information.
+.It Fl o Ar color
+Set the color used for standard output.
 .El
 .Sh COLORS
 The following colors are supported:
@@ -46,31 +60,70 @@ Purple.
 Cyan.
 .It Cm white
 White.
+.It Cm gray
+Gray.
+.It Cm bright-red
+Bright red.
+.It Cm bright-green
+Bright green.
+.It Cm bright-yellow
+Bright yellow.
+.It Cm bright-blue
+Bright blue.
+.It Cm bright-purple
+Bright purple.
+.It Cm bright-cyan
+Bright cyan.
+.It Cm bright-white
+Bright white.
 .El
 .Sh EXAMPLES
 Run
 .Xr ls 1
-and colorize its standard error output in red:
+using the default colors:
 .Bd -literal -offset indent
 clout ls /
 .Ed
-
-Use green for standard error output:
+.Pp
+Color standard output green and standard error red explicitly:
 .Bd -literal -offset indent
-clout -e green ls /
+clout -o green -e red ls /
 .Ed
-
-Color the error output of a command using a command argument:
+.Pp
+Use cyan for standard output:
+.Bd -literal -offset indent
+clout -o cyan printf 'hello\en'
+.Ed
+.Pp
+Use yellow for standard error output:
 .Bd -literal -offset indent
 clout -e yellow sh -c 'echo error >&2'
 .Ed
+.Pp
+Display usage information:
+.Bd -literal -offset indent
+clout -h
+.Ed
 .Sh EXIT STATUS
-.Ex -std
+If the command terminates normally,
+.Nm
+exits with the command's exit status.
+If the command terminates due to a signal,
+.Nm
+exits with a status of 128 plus the signal number.
+.Pp
+If
+.Nm
+fails to execute the command or encounters a fatal error, it exits with a non-zero status.
 .Sh SEE ALSO
 .Xr execvp 3 ,
+.Xr poll 2 ,
 .Xr pipe 2 ,
 .Xr dup2 2 ,
 .Xr fork 2 ,
 .Xr wait 2
 .Sh AUTHORS
-.An Mateo (Mahdi Feyzolahy)
+.An Mateo Aq mahdifeyzolahy@gmail.com
+.Sh LICENSE
+.Nm
+is distributed under the BSD 2-Clause License.
